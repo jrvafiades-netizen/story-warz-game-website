@@ -16,6 +16,14 @@ const themes = [
   'family vacations',
   'school disasters',
   'bad jobs',
+  'drugs',
+  'high school',
+  'cops',
+  'weddings',
+  'school fights',
+  'dating disasters',
+  'tattoos',
+  'bars / getting drunk',
   'secret talents',
   'celebrity encounters',
   'unexpected injuries',
@@ -24,6 +32,9 @@ const themes = [
   'near misses',
   'weird dreams',
   'childhood trouble',
+  'fashion',
+  'toys',
+  'gambling',
 ];
 
 const autofillStories = [
@@ -46,6 +57,7 @@ function shuffle<T>(items: T[]) {
 function App() {
   const [step, setStep] = useState<GameStep>('theme');
   const [theme, setTheme] = useState(themes[0]);
+  const [customTheme, setCustomTheme] = useState('');
   const [playerCount, setPlayerCount] = useState(3);
   const [entryIndex, setEntryIndex] = useState(0);
   const [currentName, setCurrentName] = useState('');
@@ -73,6 +85,7 @@ function App() {
   const randomTheme = () => {
     const options = themes.filter((item) => item !== theme);
     setTheme(options[Math.floor(Math.random() * options.length)]);
+    setCustomTheme('');
   };
 
   const resetEntryForm = () => {
@@ -170,6 +183,7 @@ function App() {
   const startFromScratch = () => {
     setStep('theme');
     setTheme(themes[0]);
+    setCustomTheme('');
     setPlayerCount(3);
     setEntryIndex(0);
     setPlayers([]);
@@ -192,21 +206,33 @@ function App() {
       <img className="hero-banner" src={storyWarzBanner} alt="Story Warz" />
 
       {step === 'theme' && (
-        <section className="panel">
+        <section className="panel theme-panel">
           <h2>Choose a Theme</h2>
-          <p>All stories this round must be about the chosen theme.</p>
+          <p>All stories must be about the chosen theme.</p>
           <div className="theme-display">{theme}</div>
+          <label className="custom-theme-field">
+            Enter your own theme
+            <input
+              aria-label="Enter your own theme"
+              placeholder="example: road trips gone wrong"
+              value={customTheme}
+              onChange={(event) => {
+                const nextTheme = event.target.value;
+                setCustomTheme(nextTheme);
+                setTheme(nextTheme.trim() || themes[0]);
+              }}
+            />
+          </label>
           <div className="button-row">
+            <button className="link-button" type="button" onClick={() => setShowRules(true)}>
+          Rules
+            </button>
             <button type="button" onClick={randomTheme}>
               Random Theme
             </button>
             <button type="button" onClick={() => setStep('players')}>
-              Next
+              ARE YOU READY FOR WAR?
             </button>
-            <button className="link-button" type="button" onClick={() => setShowRules(true)}>
-          Rules
-            </button>
-
           </div>
         </section>
       )}
@@ -215,7 +241,7 @@ function App() {
         <section className="panel">
           <h2>Select Number of Players</h2>
           <div className="segmented" aria-label="Select Number of Players">
-            {[3, 4, 5].map((count) => (
+            {[4, 5, 6, 7].map((count) => (
               <button
                 className={playerCount === count ? 'active' : ''}
                 type="button"

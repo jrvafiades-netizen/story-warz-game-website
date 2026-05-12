@@ -120,15 +120,43 @@ p {
   box-shadow: 8px 8px 0 #161616;
 }
 
+.theme-panel {
+  background: #4a4a4a;
+  color: #f4f4f4;
+}
+
+.theme-panel h2 {
+  color: #d9d9d9;
+}
+
+.theme-panel p {
+  color: #d9d9d9;
+}
+
 .theme-display {
   width: min(100%, 420px);
   padding: 18px 20px;
-  border: 2px dashed #181818;
+  border: 2px solid #d9d9d9;
   border-radius: 8px;
-  background: #f5e96d;
-  font-size: clamp(1.7rem, 7vw, 3.4rem);
+  background: #d71920;
+  color: #d9d9d9;
+  font-size: clamp(1.35rem, 5vw, 2.5rem);
   font-weight: 850;
   text-transform: uppercase;
+}
+
+.custom-theme-field {
+  display: grid;
+  width: min(100%, 420px);
+  gap: 8px;
+  color: #d9d9d9;
+  font-weight: 760;
+  text-align: left;
+}
+
+.custom-theme-field input {
+  width: 100%;
+  background: #f4f4f4;
 }
 
 .button-row,
@@ -177,7 +205,7 @@ button:active {
 
 .segmented .active {
   background: #f05d50;
-  color: #fff;
+  color: #d9d9d9;
 }
 
 input,
@@ -188,7 +216,7 @@ select {
   padding: 12px 14px;
   border: 2px solid #151515;
   border-radius: 6px;
-  background: #fff;
+  background: #d9d9d9;
   color: #151515;
 }
 
@@ -233,7 +261,7 @@ textarea {
   border: 2px solid #151515;
   border-radius: 999px;
   background: #f05d50;
-  color: #fff;
+  color: #d9d9d9;
   font-size: 0.9rem;
   letter-spacing: 0;
 }
@@ -317,7 +345,7 @@ footer a {
   padding: 26px;
   border: 3px solid #111;
   border-radius: 8px;
-  background: #fff;
+  background: #d9d9d9;
   box-shadow: 8px 8px 0 #111;
 }
 
