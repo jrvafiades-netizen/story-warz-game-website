@@ -1,8 +1,6 @@
 @font-face {
   font-family: "Impact Local";
-  src:
-    local("Impact"),
-    url("/fonts/Impact.ttf") format("truetype");
+  src: local("Impact");
   font-display: swap;
   font-style: normal;
   font-weight: 900;
