@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url';
 
 const playerCount = 4;
 const storyCount = 4;
+const maxGameStories = 8;
 const distDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../dist');
 
 let appServer: Server;
@@ -112,15 +113,16 @@ test('plays a full game flow with named players and stories', async ({ page }) =
     await page.getByRole('button', { name: 'Submit' }).click();
   }
 
-  const totalStories = playerCount * storyCount;
-
-  for (let storyNumber = 1; storyNumber <= totalStories; storyNumber += 1) {
+  for (let storyNumber = 1; storyNumber <= maxGameStories; storyNumber += 1) {
     await expect(page.getByRole('heading', { name: `Story ${storyNumber}` })).toBeVisible();
-    await page.getByRole('button', { name: 'Reveal' }).click();
+    await page.getByRole('button', { name: `Story number ${storyNumber}` }).click();
 
     const storyText = await page.locator('.story-card').innerText();
     const owner = storyText.match(/^p(?<playerNumber>\d+)s\d+$/)?.groups?.playerNumber;
     expect(owner, `Expected story text "${storyText}" to identify a player`).toBeTruthy();
+
+    const nextStoryButton = page.getByRole('button', { name: 'Whose story is this?' });
+    await expect(nextStoryButton).toBeDisabled();
 
     for (let voterNumber = 1; voterNumber <= playerCount; voterNumber += 1) {
       await expect(page.getByLabel(`p${voterNumber}'s guess`).locator('option', { hasText: `p${voterNumber}` })).toHaveCount(0);
@@ -130,12 +132,62 @@ test('plays a full game flow with named players and stories', async ({ page }) =
       await page.getByLabel(`p${voterNumber}'s guess`).selectOption({ label: guess });
     }
 
-    await page.getByRole('button', { name: 'Next Story' }).click();
+    await expect(nextStoryButton).toBeEnabled();
+    await nextStoryButton.click();
+
+    await expect(
+      page.getByRole('heading', {
+        name: `Story number ${storyNumber} belonged to: p${owner}`,
+      }),
+    ).toBeVisible();
+    await expect(page.getByLabel('Updated scoreboard').getByText(`p${owner}`, { exact: true })).toBeVisible();
+
+    if (storyNumber < maxGameStories) {
+      await page.getByRole('button', { name: `Story number ${storyNumber + 1}` }).click();
+    } else {
+      await page.getByRole('button', { name: 'Final scores' }).click();
+    }
   }
 
+  await expect(page.getByRole('heading', { name: 'Story 9' })).toHaveCount(0);
+
   if (await page.getByRole('heading', { name: 'Sudden Death!' }).isVisible()) {
-    await page.getByLabel("p1's wager").fill('1');
-    await page.getByRole('button', { name: 'Start Sudden Death Round' }).click();
+    const suddenDeath = page.locator('section').filter({
+      has: page.getByRole('heading', { name: 'Sudden Death!' }),
+    });
+    const wagerFields = suddenDeath.locator('input[type="number"]');
+
+    for (let index = 0; index < await wagerFields.count(); index += 1) {
+      await wagerFields.nth(index).fill('1');
+    }
+
+    await suddenDeath.getByRole('button', { name: 'Start Sudden Death Round' }).click();
+
+    await expect(page.getByRole('heading', { name: 'Sudden Death Story' })).toBeVisible();
+    await page.getByRole('button', { name: 'Reveal sudden death story' }).click();
+
+    const suddenDeathStoryText = await page.locator('.story-card').innerText();
+    const suddenDeathOwner = suddenDeathStoryText.match(/^p(?<playerNumber>\d+)s\d+$/)?.groups?.playerNumber;
+    expect(suddenDeathOwner, `Expected story text "${suddenDeathStoryText}" to identify a player`).toBeTruthy();
+
+    const finalScoresButton = page.getByRole('button', { name: 'Final scores' });
+    await expect(finalScoresButton).toBeDisabled();
+
+    const suddenDeathGuessFields = page.locator('section').filter({
+      has: page.getByRole('heading', { name: 'Sudden Death Story' }),
+    });
+
+    const suddenDeathLabels = suddenDeathGuessFields.locator('label');
+
+    for (let index = 0; index < await suddenDeathLabels.count(); index += 1) {
+      const labelText = await suddenDeathLabels.nth(index).textContent();
+      const finalistName = labelText?.match(/^(p\d+)'s guess/)?.[1];
+      expect(finalistName, `Expected sudden death guess label "${labelText}" to identify a finalist`).toBeTruthy();
+      await page.getByLabel(`${finalistName}'s guess`).selectOption({ label: `p${suddenDeathOwner}` });
+    }
+
+    await expect(finalScoresButton).toBeEnabled();
+    await finalScoresButton.click();
   }
 
   const finalScores = page.locator('section').filter({

@@ -11,7 +11,7 @@ Story Warz is a local party game where players write short personal stories, the
 5. One story is revealed at a time.
 6. Every player guesses who wrote the story.
 7. Scores are updated after each reveal.
-8. The player with the most points at the end wins.
+8. The game ends after story 8, and the player with the most points wins.
 
 ## Scoring
 
@@ -19,11 +19,11 @@ If the displayed story is not yours, guess the author correctly to earn 2 points
 
 If the displayed story is yours, try to fool the other players. You earn 1 point for every player who guesses incorrectly.
 
-At the halfway point of the deck, the game enters double points. All points earned during those stories are doubled.
+Stories 5, 6, 7, and 8 are double points. All points earned during those stories are doubled.
 
 ## Sudden Death
 
-If two or more players are tied at the end of the game, Story Warz starts a sudden-death tiebreaker. Tied players wager between 0 and their current score, then the wager is subtracted from their score when the tiebreaker finishes.
+If two or more players are tied at the end of the game, Story Warz starts a sudden-death tiebreaker. Tied players wager between 0 and their current score, then one more unplayed story is revealed. Finalists guess whose story it is: a correct guess adds the wager, and a miss subtracts it.
 
 ## Development
 

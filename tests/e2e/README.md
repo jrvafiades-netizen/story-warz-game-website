@@ -11,7 +11,7 @@ This Playwright scenario covers the happy path for a complete local game.
 5. Reveal each shuffled story in the deck.
 6. Read the revealed story text to identify its owner.
 7. Submit guesses for all players.
-8. Advance through all sixteen stories.
+8. Advance through story 8 and confirm the game ends.
 9. Complete Sudden Death if the scoring path creates a tie.
 10. Assert that Final Scores are shown for all four players.
 

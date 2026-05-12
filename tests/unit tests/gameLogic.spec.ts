@@ -2,8 +2,10 @@ import { expect, test } from '@playwright/test';
 import {
   clampWager,
   createDeck,
+  getSuddenDeathStory,
   getTiedPlayers,
   isDoublePointsRound,
+  scoreSuddenDeath,
   scorePlayers,
   shuffle,
   type Player,
@@ -55,11 +57,13 @@ test('createDeck converts every player story into a story card', () => {
   );
 });
 
-test('isDoublePointsRound starts at the halfway point of the deck', () => {
+test('isDoublePointsRound doubles stories 5 through 8', () => {
   expect(isDoublePointsRound(0, 0)).toBe(false);
   expect(isDoublePointsRound(8, 3)).toBe(false);
   expect(isDoublePointsRound(8, 4)).toBe(true);
   expect(isDoublePointsRound(8, 7)).toBe(true);
+  expect(isDoublePointsRound(8, 8)).toBe(false);
+  expect(isDoublePointsRound(16, 8)).toBe(false);
 });
 
 test('scorePlayers awards correct guesses and owner bluff points', () => {
@@ -133,4 +137,43 @@ test('clampWager keeps wagers between zero and the player score', () => {
   expect(clampWager(10, -3)).toBe(0);
   expect(clampWager(10, 4)).toBe(4);
   expect(clampWager(10, 15)).toBe(10);
+});
+
+test('getSuddenDeathStory prefers an unplayed story from a non-finalist', () => {
+  const deck = [
+    { playerId: 1, text: 'played' },
+    { playerId: 2, text: 'finalist unplayed' },
+    { playerId: 3, text: 'non-finalist unplayed' },
+  ];
+
+  expect(getSuddenDeathStory(deck, 1, [1, 2])).toEqual({
+    playerId: 3,
+    text: 'non-finalist unplayed',
+  });
+});
+
+test('scoreSuddenDeath adds correct wagers and subtracts missed wagers from finalists', () => {
+  const scored = scoreSuddenDeath(
+    [
+      { ...players[0], score: 10 },
+      { ...players[1], score: 10 },
+      { ...players[2], score: 4 },
+    ],
+    { playerId: 3, text: 'Casey 1' },
+    {
+      1: 3,
+      2: 1,
+    },
+    {
+      1: 4,
+      2: 3,
+    },
+    [1, 2],
+  );
+
+  expect(scored).toEqual([
+    { ...players[0], score: 14 },
+    { ...players[1], score: 7 },
+    { ...players[2], score: 4 },
+  ]);
 });

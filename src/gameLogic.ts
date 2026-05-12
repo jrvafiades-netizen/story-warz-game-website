@@ -29,7 +29,8 @@ export function createDeck(players: Player[], random = Math.random): StoryCard[]
 }
 
 export function isDoublePointsRound(deckLength: number, storyIndex: number) {
-  return deckLength > 0 && storyIndex >= Math.floor(deckLength / 2);
+  const storyNumber = storyIndex + 1;
+  return deckLength > 0 && storyNumber >= 5 && storyNumber <= 8 && storyIndex < deckLength;
 }
 
 export function scorePlayers(
@@ -74,4 +75,35 @@ export function getTiedPlayers(players: Player[]) {
 
 export function clampWager(score: number, wager: number) {
   return Math.min(score, Math.max(0, wager));
+}
+
+export function getSuddenDeathStory(deck: StoryCard[], playedCount: number, finalistIds: number[]) {
+  const unplayedStories = deck.slice(playedCount);
+  const finalistIdSet = new Set(finalistIds);
+
+  return unplayedStories.find((story) => !finalistIdSet.has(story.playerId)) ?? unplayedStories[0];
+}
+
+export function scoreSuddenDeath(
+  players: Player[],
+  currentStory: StoryCard,
+  votes: Votes,
+  wagers: Record<number, number>,
+  finalistIds: number[],
+) {
+  const finalistIdSet = new Set(finalistIds);
+
+  return players.map((player) => {
+    if (!finalistIdSet.has(player.id)) {
+      return player;
+    }
+
+    const wager = clampWager(player.score, wagers[player.id] || 0);
+    const guessedCorrectly = votes[player.id] === currentStory.playerId;
+
+    return {
+      ...player,
+      score: player.score + (guessedCorrectly ? wager : -wager),
+    };
+  });
 }

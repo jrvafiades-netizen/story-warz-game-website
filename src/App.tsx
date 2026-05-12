@@ -4,15 +4,25 @@ import storyWarzBanner from './assets/storywarzbanner.jpg';
 import {
   clampWager,
   createDeck,
+  getSuddenDeathStory,
   getTiedPlayers,
   isDoublePointsRound,
+  scoreSuddenDeath,
   scorePlayers,
   type Player,
   type StoryCard,
   type Votes,
 } from './gameLogic';
 
-type GameStep = 'theme' | 'players' | 'entry' | 'play' | 'suddenDeath' | 'gameOver';
+type GameStep =
+  | 'theme'
+  | 'players'
+  | 'entry'
+  | 'play'
+  | 'result'
+  | 'suddenDeath'
+  | 'suddenDeathPlay'
+  | 'gameOver';
 
 const themes = [
   'first dates',
@@ -26,7 +36,8 @@ const themes = [
   'school fights',
   'dating disasters',
   'tattoos',
-  'bars / getting drunk',
+  'drinking',
+  'food',
   'secret talents',
   'celebrity encounters',
   'unexpected injuries',
@@ -38,6 +49,23 @@ const themes = [
   'fashion',
   'toys',
   'gambling',
+  'shock',
+  'celebrations',
+  'crime',
+  'nature',
+  'luck',
+  'loss',
+  'fall',
+  'sickness',
+  'regrets',
+  'darkness',
+  'sex, drugs, & rock & roll',
+  'kids',
+  'women',
+  'sex',
+  'family',
+  'school',
+  'neighbors',
 ];
 
 const autofillStories = [
@@ -50,8 +78,10 @@ const autofillStories = [
 const rules = [
   "If the story displayed is YOUR STORY: Your goal is to fool the other players into thinking it's not your story. You earn 1 point for every person you fool.",
   'If the story displayed IS NOT yours: Your goal is to guess whose story it is. If you guess correctly, you earn 2 points.',
-  'Double Points: At the halfway point of the game, all points earned that round are doubled.',
+  'Double Points: Stories 5, 6, 7, and 8 are double points.',
 ];
+
+const maxGameStories = 8;
 
 function App() {
   const [step, setStep] = useState<GameStep>('theme');
@@ -68,13 +98,24 @@ function App() {
   const [votes, setVotes] = useState<Votes>({});
   const [showRules, setShowRules] = useState(false);
   const [wagers, setWagers] = useState<Record<number, number>>({});
+  const [suddenDeathStory, setSuddenDeathStory] = useState<StoryCard | undefined>();
+  const [suddenDeathRevealed, setSuddenDeathRevealed] = useState(false);
+  const [suddenDeathVotes, setSuddenDeathVotes] = useState<Votes>({});
 
   const currentStory = deck[storyIndex];
+  const currentStoryOwner = players.find((player) => player.id === currentStory?.playerId);
+  const suddenDeathStoryOwner = players.find((player) => player.id === suddenDeathStory?.playerId);
   const doublePoints = isDoublePointsRound(deck.length, storyIndex);
+  const allPlayersGuessed =
+    players.length > 0 && players.every((player) => votes[player.id] !== undefined && votes[player.id] !== '');
 
   const tiedPlayers = useMemo(() => {
     return getTiedPlayers(players);
   }, [players]);
+  const finalistIds = useMemo(() => tiedPlayers.map((player) => player.id), [tiedPlayers]);
+  const allFinalistsGuessed =
+    tiedPlayers.length > 0 &&
+    tiedPlayers.every((player) => suddenDeathVotes[player.id] !== undefined && suddenDeathVotes[player.id] !== '');
 
   const randomTheme = () => {
     const options = themes.filter((item) => item !== theme);
@@ -117,7 +158,7 @@ function App() {
   };
 
   const scoreStory = () => {
-    if (!currentStory) {
+    if (!currentStory || !allPlayersGuessed) {
       return;
     }
 
@@ -126,25 +167,42 @@ function App() {
     setPlayers(scoredPlayers);
     setVotes({});
     setRevealed(false);
+    setStep('result');
+  };
 
-    if (storyIndex + 1 >= deck.length) {
-      const highScore = Math.max(...scoredPlayers.map((player) => player.score));
-      const tied = scoredPlayers.filter((player) => player.score === highScore);
+  const advanceStory = () => {
+    if (storyIndex + 1 >= Math.min(deck.length, maxGameStories)) {
+      const highScore = Math.max(...players.map((player) => player.score));
+      const tied = players.filter((player) => player.score === highScore);
       setWagers(Object.fromEntries(tied.map((player) => [player.id, 0])));
       setStep(tied.length > 1 ? 'suddenDeath' : 'gameOver');
       return;
     }
 
     setStoryIndex(storyIndex + 1);
+    setStep('play');
+  };
+
+  const startSuddenDeathRound = () => {
+    const nextStory = getSuddenDeathStory(deck, Math.min(deck.length, maxGameStories), finalistIds);
+
+    if (!nextStory) {
+      setStep('gameOver');
+      return;
+    }
+
+    setSuddenDeathStory(nextStory);
+    setSuddenDeathRevealed(false);
+    setSuddenDeathVotes({});
+    setStep('suddenDeathPlay');
   };
 
   const finishSuddenDeath = () => {
-    setPlayers((currentPlayers) =>
-      currentPlayers.map((player) => ({
-        ...player,
-        score: player.score - (wagers[player.id] || 0),
-      })),
-    );
+    if (!suddenDeathStory || !allFinalistsGuessed) {
+      return;
+    }
+
+    setPlayers(scoreSuddenDeath(players, suddenDeathStory, suddenDeathVotes, wagers, finalistIds));
     setStep('gameOver');
   };
 
@@ -160,6 +218,9 @@ function App() {
     setRevealed(false);
     setVotes({});
     setWagers({});
+    setSuddenDeathStory(undefined);
+    setSuddenDeathRevealed(false);
+    setSuddenDeathVotes({});
     resetEntryForm();
   };
 
@@ -279,7 +340,7 @@ function App() {
 
           {!revealed ? (
             <button type="button" onClick={() => setRevealed(true)}>
-              Reveal
+              Story number {storyIndex + 1}
             </button>
           ) : (
             <>
@@ -308,21 +369,41 @@ function App() {
                   </label>
                 ))}
               </div>
-              <button type="button" onClick={scoreStory}>
-                Next Story
+              <button type="button" onClick={scoreStory} disabled={!allPlayersGuessed}>
+                Whose story is this?
               </button>
             </>
           )}
         </section>
       )}
 
+      {step === 'result' && currentStory && currentStoryOwner && (
+        <section className="panel result-panel">
+          <h2>
+            Story number {storyIndex + 1} belonged to: {currentStoryOwner.name}
+          </h2>
+          <div className="scoreboard final" aria-label="Updated scoreboard">
+            {players
+              .toSorted((a, b) => b.score - a.score)
+              .map((player) => (
+                <div key={player.id}>
+                  <span>{player.name}</span>
+                  <strong>{player.score}</strong>
+                </div>
+              ))}
+          </div>
+          <button type="button" onClick={advanceStory}>
+            {storyIndex + 1 >= Math.min(deck.length, maxGameStories)
+              ? 'Final scores'
+              : `Story number ${storyIndex + 2}`}
+          </button>
+        </section>
+      )}
+
       {step === 'suddenDeath' && (
         <section className="panel">
           <h2>Sudden Death!</h2>
-          <p>
-            Tied players must wager between 0 and all of their current points. After the round, the
-            wager is subtracted from their score.
-          </p>
+          <p>Tied players must wager between 0 and all of their current points.</p>
           <div className="votes">
             {tiedPlayers.map((player) => (
               <label key={player.id}>
@@ -342,15 +423,61 @@ function App() {
               </label>
             ))}
           </div>
-          <button type="button" onClick={finishSuddenDeath}>
+          <button type="button" onClick={startSuddenDeathRound}>
             Start Sudden Death Round
           </button>
+        </section>
+      )}
+
+      {step === 'suddenDeathPlay' && suddenDeathStory && (
+        <section className="panel play-panel">
+          <div className="story-meta">
+            <h2>Sudden Death Story</h2>
+          </div>
+          <article className="story-card">{suddenDeathRevealed ? suddenDeathStory.text : 'Ready?'}</article>
+
+          {!suddenDeathRevealed ? (
+            <button type="button" onClick={() => setSuddenDeathRevealed(true)}>
+              Reveal sudden death story
+            </button>
+          ) : (
+            <>
+              <div className="votes">
+                {tiedPlayers.map((player) => (
+                  <label key={player.id}>
+                    {player.name}'s guess
+                    <select
+                      value={suddenDeathVotes[player.id] ?? ''}
+                      onChange={(event) =>
+                        setSuddenDeathVotes({
+                          ...suddenDeathVotes,
+                          [player.id]: event.target.value ? Number(event.target.value) : '',
+                        })
+                      }
+                    >
+                      <option value="">Choose a player</option>
+                      {players.map((option) => (
+                        <option key={option.id} value={option.id}>
+                          {option.name}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                ))}
+              </div>
+              {suddenDeathStoryOwner && <p>Lock in the finalists' guesses before revealing final scores.</p>}
+              <button type="button" onClick={finishSuddenDeath} disabled={!allFinalistsGuessed}>
+                Final scores
+              </button>
+            </>
+          )}
         </section>
       )}
 
       {step === 'gameOver' && (
         <section className="panel">
           <h2>Final Scores</h2>
+          {suddenDeathStoryOwner && <p>Sudden death story belonged to: {suddenDeathStoryOwner.name}</p>}
           <div className="scoreboard final">
             {players
               .toSorted((a, b) => b.score - a.score)
@@ -369,6 +496,7 @@ function App() {
 
       {players.length > 0 && (
         <aside className="scoreboard" aria-label="Scoreboard">
+          <h2>Scoreboard</h2>
           {players.map((player) => (
             <div key={player.id}>
               <span>{player.name}</span>
@@ -398,11 +526,14 @@ function App() {
               Wager: Each tied player privately enters a wager between 0 and all of their current
               points. Wagers are locked in one at a time so opponents cannot see the amount.
             </p>
-            <p>The story: A random unplayed story written by a non-tied player is revealed.</p>
-            <p>Voting: Only tied players vote, and the dropdown only shows non-tied players.</p>
             <p>
-              Scoring: After the round, each tied player's wager is subtracted from their score,
-              then earned points are added. Highest score wins. No double points in sudden death.
+              The story: A random unplayed story written by a non-tied player is revealed when
+              possible.
+            </p>
+            <p>Voting: Only tied players vote, and any player can be guessed.</p>
+            <p>
+              Scoring: Each tied player adds their wager for a correct guess or loses their wager
+              for a miss. Highest score wins. No double points in sudden death.
             </p>
             <button type="button" onClick={() => setShowRules(false)}>
               Close
