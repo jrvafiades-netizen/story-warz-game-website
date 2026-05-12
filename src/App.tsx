@@ -1,13 +1,16 @@
 import { useMemo, useState } from 'react';
 import './App.css';
 import storyWarzBanner from './assets/storywarzbanner.jpg';
-
-type Player = {
-  id: number;
-  name: string;
-  stories: string[];
-  score: number;
-};
+import {
+  clampWager,
+  createDeck,
+  getTiedPlayers,
+  isDoublePointsRound,
+  scorePlayers,
+  type Player,
+  type StoryCard,
+  type Votes,
+} from './gameLogic';
 
 type GameStep = 'theme' | 'players' | 'entry' | 'play' | 'suddenDeath' | 'gameOver';
 
@@ -50,10 +53,6 @@ const rules = [
   'Double Points: At the halfway point of the game, all points earned that round are doubled.',
 ];
 
-function shuffle<T>(items: T[]) {
-  return [...items].sort(() => Math.random() - 0.5);
-}
-
 function App() {
   const [step, setStep] = useState<GameStep>('theme');
   const [theme, setTheme] = useState(themes[0]);
@@ -63,23 +62,18 @@ function App() {
   const [currentName, setCurrentName] = useState('');
   const [currentStories, setCurrentStories] = useState(['', '', '', '']);
   const [players, setPlayers] = useState<Player[]>([]);
-  const [deck, setDeck] = useState<Array<{ playerId: number; text: string }>>([]);
+  const [deck, setDeck] = useState<StoryCard[]>([]);
   const [storyIndex, setStoryIndex] = useState(0);
   const [revealed, setRevealed] = useState(false);
-  const [votes, setVotes] = useState<Record<number, number | ''>>({});
+  const [votes, setVotes] = useState<Votes>({});
   const [showRules, setShowRules] = useState(false);
   const [wagers, setWagers] = useState<Record<number, number>>({});
 
   const currentStory = deck[storyIndex];
-  const doublePoints = deck.length > 0 && storyIndex >= Math.floor(deck.length / 2);
+  const doublePoints = isDoublePointsRound(deck.length, storyIndex);
 
   const tiedPlayers = useMemo(() => {
-    if (players.length === 0) {
-      return [];
-    }
-
-    const highScore = Math.max(...players.map((player) => player.score));
-    return players.filter((player) => player.score === highScore);
+    return getTiedPlayers(players);
   }, [players]);
 
   const randomTheme = () => {
@@ -112,16 +106,7 @@ function App() {
     resetEntryForm();
 
     if (entryIndex + 1 === playerCount) {
-      setDeck(
-        shuffle(
-          nextPlayers.flatMap((player) =>
-            player.stories.map((story) => ({
-              playerId: player.id,
-              text: story,
-            })),
-          ),
-        ),
-      );
+      setDeck(createDeck(nextPlayers));
       setVotes({});
       setStoryIndex(0);
       setStep('play');
@@ -136,24 +121,7 @@ function App() {
       return;
     }
 
-    const multiplier = doublePoints ? 2 : 1;
-    const scoredPlayers = players.map((player) => {
-      let earned = 0;
-
-      Object.entries(votes).forEach(([voterId, guessedId]) => {
-        const voter = Number(voterId);
-
-        if (guessedId === currentStory.playerId && voter !== currentStory.playerId) {
-          earned += player.id === voter ? 2 : 0;
-        }
-
-        if (voter !== currentStory.playerId && guessedId !== currentStory.playerId) {
-          earned += player.id === currentStory.playerId ? 1 : 0;
-        }
-      });
-
-      return { ...player, score: player.score + earned * multiplier };
-    });
+    const scoredPlayers = scorePlayers(players, currentStory, votes, doublePoints);
 
     setPlayers(scoredPlayers);
     setVotes({});
@@ -365,7 +333,7 @@ function App() {
                   onChange={(event) =>
                     setWagers({
                       ...wagers,
-                      [player.id]: Math.min(player.score, Math.max(0, Number(event.target.value))),
+                      [player.id]: clampWager(player.score, Number(event.target.value)),
                     })
                   }
                 />

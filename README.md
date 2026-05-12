@@ -64,6 +64,12 @@ Run lint checks:
 npm run lint
 ```
 
+Run the Playwright end-to-end suite:
+
+```sh
+npm run test:e2e
+```
+
 On Windows PowerShell, if `npm` is blocked by script execution policy, use `npm.cmd` instead:
 
 ```sh
