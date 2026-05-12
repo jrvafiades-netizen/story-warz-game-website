@@ -8,6 +8,7 @@ import { fileURLToPath } from 'node:url';
 const playerCount = 4;
 const storyCount = 4;
 const maxGameStories = 8;
+const appBasePath = '/story-warz-game-website/';
 const distDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../dist');
 
 let appServer: Server;
@@ -16,7 +17,10 @@ let appUrl: string;
 test.beforeAll(async () => {
   appServer = createServer(async (request, response) => {
     const requestUrl = new URL(request.url ?? '/', 'http://127.0.0.1');
-    const relativePath = requestUrl.pathname === '/' ? 'index.html' : requestUrl.pathname.slice(1);
+    const pathname = requestUrl.pathname.startsWith(appBasePath)
+      ? requestUrl.pathname.slice(appBasePath.length - 1)
+      : requestUrl.pathname;
+    const relativePath = pathname === '/' ? 'index.html' : pathname.slice(1);
     const filePath = path.resolve(distDir, relativePath);
 
     if (!filePath.startsWith(distDir)) {
