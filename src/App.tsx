@@ -297,11 +297,13 @@ function App() {
                       }
                     >
                       <option value="">Choose a player</option>
-                      {players.map((option) => (
+                      {players
+                        .filter((option) => option.id !== player.id)
+                        .map((option) => (
                         <option key={option.id} value={option.id}>
                           {option.name}
                         </option>
-                      ))}
+                        ))}
                     </select>
                   </label>
                 ))}

@@ -46,6 +46,10 @@ export function scorePlayers(
     Object.entries(votes).forEach(([voterId, guessedId]) => {
       const voter = Number(voterId);
 
+      if (guessedId === '' || guessedId === voter) {
+        return;
+      }
+
       if (guessedId === currentStory.playerId && voter !== currentStory.playerId) {
         earned += player.id === voter ? 2 : 0;
       }

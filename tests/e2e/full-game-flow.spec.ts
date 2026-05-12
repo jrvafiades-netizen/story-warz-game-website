@@ -123,7 +123,10 @@ test('plays a full game flow with named players and stories', async ({ page }) =
     expect(owner, `Expected story text "${storyText}" to identify a player`).toBeTruthy();
 
     for (let voterNumber = 1; voterNumber <= playerCount; voterNumber += 1) {
-      const guess = voterNumber === Number(owner) ? 'p1' : `p${owner}`;
+      await expect(page.getByLabel(`p${voterNumber}'s guess`).locator('option', { hasText: `p${voterNumber}` })).toHaveCount(0);
+
+      const guessNumber = voterNumber === Number(owner) ? (voterNumber === 1 ? 2 : 1) : Number(owner);
+      const guess = `p${guessNumber}`;
       await page.getByLabel(`p${voterNumber}'s guess`).selectOption({ label: guess });
     }
 

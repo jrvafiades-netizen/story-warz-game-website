@@ -100,6 +100,24 @@ test('scorePlayers doubles earned points during double points rounds', () => {
   ]);
 });
 
+test('scorePlayers ignores self guesses', () => {
+  const scored = scorePlayers(
+    players,
+    { playerId: 1, text: 'Alex 1' },
+    {
+      2: 2,
+      3: 1,
+    },
+    false,
+  );
+
+  expect(scored).toEqual([
+    { ...players[0], score: 0 },
+    { ...players[1], score: 0 },
+    { ...players[2], score: 2 },
+  ]);
+});
+
 test('getTiedPlayers returns every player with the highest score', () => {
   const tied = getTiedPlayers([
     { ...players[0], score: 5 },
