@@ -70,6 +70,17 @@ Run the Playwright end-to-end suite:
 npm run test:e2e
 ```
 
+## CI/CD Pipeline
+
+The GitHub Pages workflow runs the quality gates in this order:
+
+1. Unit Tests
+2. Deterministic Playwright E2E
+3. Agentic Playwright CLI Exploration
+4. AI Bug Analysis + Test Suggestions
+
+The agentic and AI-analysis stages use `openai/codex-action` when an `OPENAI_API_KEY` repository secret is configured. Without that secret, those stages upload a skipped report and the deterministic pipeline can still complete.
+
 On Windows PowerShell, if `npm` is blocked by script execution policy, use `npm.cmd` instead:
 
 ```sh

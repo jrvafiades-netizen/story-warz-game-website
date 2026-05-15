@@ -15,8 +15,30 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  build:
+  unit-tests:
     runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run unit tests
+        run: npm run test:unit
+
+  deterministic-playwright-e2e:
+    runs-on: ubuntu-latest
+    needs: unit-tests
     steps:
       - name: Checkout
         uses: actions/checkout@v5
@@ -36,23 +58,159 @@ jobs:
       - name: Install Playwright browsers
         run: npx playwright install --with-deps chromium
 
-      - name: Run unit tests
-        run: npm run test:unit
-
-      - name: Run Playwright tests
+      - name: Run deterministic Playwright E2E
         run: npm run test:e2e
+
+      - name: Upload E2E run artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: deterministic-playwright-e2e
+          path: |
+            test-results/
+            playwright-report/
+          if-no-files-found: ignore
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v4
         with:
           path: dist
 
+  agentic-playwright-cli-exploration:
+    runs-on: ubuntu-latest
+    needs: deterministic-playwright-e2e
+    env:
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright browsers and CLI
+        run: |
+          npx playwright install --with-deps chromium
+          npm install -g @playwright/cli@latest
+
+      - name: Prepare test results folder
+        run: mkdir -p test-results
+
+      - name: Build app
+        run: npm run build
+
+      - name: Start preview server
+        run: npm run preview -- --host 127.0.0.1 --port 4173 &
+
+      - name: Wait for preview server
+        run: |
+          for attempt in {1..30}; do
+            if curl --fail --silent --show-error http://127.0.0.1:4173/story-warz-game-website/ > /dev/null; then
+              exit 0
+            fi
+
+            sleep 2
+          done
+
+          echo "Preview server did not become ready in time."
+          exit 1
+
+      - name: Skip agentic exploration when OPENAI_API_KEY is unavailable
+        if: ${{ env.OPENAI_API_KEY == '' }}
+        run: |
+          mkdir -p test-results
+          cat > test-results/agentic-playwright-exploration.md <<'EOF'
+          # Agentic Playwright CLI Exploration
+
+          Skipped because the `OPENAI_API_KEY` repository secret is not configured.
+          EOF
+
+      - name: Agentic Playwright CLI exploration
+        if: ${{ env.OPENAI_API_KEY != '' }}
+        uses: openai/codex-action@v1
+        with:
+          openai-api-key: ${{ secrets.OPENAI_API_KEY }}
+          prompt-file: .github/prompts/agentic-playwright-exploration.md
+          output-file: test-results/agentic-playwright-exploration.md
+          sandbox: workspace-write
+
+      - name: Upload agentic exploration artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: agentic-playwright-cli-exploration
+          path: test-results/
+          if-no-files-found: ignore
+
+  ai-bug-analysis:
+    runs-on: ubuntu-latest
+    needs:
+      - deterministic-playwright-e2e
+      - agentic-playwright-cli-exploration
+    env:
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Download deterministic E2E artifacts
+        uses: actions/download-artifact@v5
+        with:
+          name: deterministic-playwright-e2e
+          path: test-results/deterministic-playwright-e2e
+
+      - name: Download agentic exploration artifact
+        uses: actions/download-artifact@v5
+        with:
+          name: agentic-playwright-cli-exploration
+          path: test-results/agentic-playwright-cli-exploration
+
+      - name: Prepare test results folder
+        run: mkdir -p test-results
+
+      - name: Skip AI bug analysis when OPENAI_API_KEY is unavailable
+        if: ${{ env.OPENAI_API_KEY == '' }}
+        run: |
+          mkdir -p test-results
+          cat > test-results/ai-bug-analysis.md <<'EOF'
+          # AI Bug Analysis + Test Suggestions
+
+          Skipped because the `OPENAI_API_KEY` repository secret is not configured.
+          EOF
+
+      - name: AI bug analysis and test suggestions
+        if: ${{ env.OPENAI_API_KEY != '' }}
+        uses: openai/codex-action@v1
+        with:
+          openai-api-key: ${{ secrets.OPENAI_API_KEY }}
+          prompt-file: .github/prompts/ai-bug-analysis.md
+          output-file: test-results/ai-bug-analysis.md
+          sandbox: read-only
+
+      - name: Add AI bug analysis to job summary
+        if: always()
+        run: cat test-results/ai-bug-analysis.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload AI bug analysis artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ai-bug-analysis-and-test-suggestions
+          path: test-results/
+          if-no-files-found: ignore
+
   deploy:
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-latest
-    needs: build
+    needs: ai-bug-analysis
     steps:
       - name: Deploy to GitHub Pages
         id: deployment
