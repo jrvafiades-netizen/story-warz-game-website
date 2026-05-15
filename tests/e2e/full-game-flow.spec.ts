@@ -1,6 +1,6 @@
-import { expect, test } from '@playwright/test';
+import { expect, test, type Locator } from '@playwright/test';
 import { createReadStream } from 'node:fs';
-import { stat } from 'node:fs/promises';
+import { mkdir, stat, writeFile } from 'node:fs/promises';
 import { createServer, type Server } from 'node:http';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -10,9 +10,30 @@ const storyCount = 4;
 const maxGameStories = 8;
 const appBasePath = '/story-warz-game-website/';
 const distDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../dist');
+const gameRunPath = path.resolve(distDir, '../test-results/full-game-flow.json');
 
 let appServer: Server;
 let appUrl: string;
+
+type ScoreSnapshot = Array<{ player: string; score: number }>;
+
+type GameRun = {
+  rounds: Array<{
+    round: number;
+    story: string;
+    owner: string;
+    guesses: Record<string, string>;
+    scores: ScoreSnapshot;
+  }>;
+  suddenDeath?: {
+    story: string;
+    owner: string;
+    wagers: Record<string, number>;
+    guesses: Record<string, string>;
+    scores: ScoreSnapshot;
+  };
+  finalScores?: ScoreSnapshot;
+};
 
 test.beforeAll(async () => {
   appServer = createServer(async (request, response) => {
@@ -95,7 +116,41 @@ function contentType(filePath: string) {
   return 'application/octet-stream';
 }
 
+function regularRoundGuess(storyNumber: number, ownerNumber: number, voterNumber: number) {
+  if (ownerNumber === 1) {
+    if (voterNumber === 1) {
+      return 'p2';
+    }
+
+    if (voterNumber === 2) {
+      return 'p1';
+    }
+
+    const shouldMiss = voterNumber === 3 ? storyNumber % 2 === 1 : storyNumber % 2 === 0;
+    return shouldMiss ? 'p2' : 'p1';
+  }
+
+  if (ownerNumber === 2) {
+    if (voterNumber === 2) {
+      return 'p1';
+    }
+
+    if (voterNumber === 1) {
+      return 'p2';
+    }
+
+    const shouldHit = (voterNumber === 3 && storyNumber === 5) || (voterNumber === 4 && storyNumber === 6);
+    return shouldHit ? 'p2' : 'p1';
+  }
+
+  return `p${ownerNumber}`;
+}
+
 test('plays a full game flow with named players and stories', async ({ page }) => {
+  const gameRun: GameRun = {
+    rounds: [],
+  };
+
   await page.addInitScript(() => {
     Math.random = () => 0.5;
   });
@@ -128,11 +183,13 @@ test('plays a full game flow with named players and stories', async ({ page }) =
     const nextStoryButton = page.getByRole('button', { name: 'Whose story is this?' });
     await expect(nextStoryButton).toBeDisabled();
 
+    const guesses: Record<string, string> = {};
+
     for (let voterNumber = 1; voterNumber <= playerCount; voterNumber += 1) {
       await expect(page.getByLabel(`p${voterNumber}'s guess`).locator('option', { hasText: `p${voterNumber}` })).toHaveCount(0);
 
-      const guessNumber = voterNumber === Number(owner) ? (voterNumber === 1 ? 2 : 1) : Number(owner);
-      const guess = `p${guessNumber}`;
+      const guess = regularRoundGuess(storyNumber, Number(owner), voterNumber);
+      guesses[`p${voterNumber}`] = guess;
       await page.getByLabel(`p${voterNumber}'s guess`).selectOption({ label: guess });
     }
 
@@ -145,6 +202,16 @@ test('plays a full game flow with named players and stories', async ({ page }) =
       }),
     ).toBeVisible();
     await expect(page.getByLabel('Updated scoreboard').getByText(`p${owner}`, { exact: true })).toBeVisible();
+
+    const scores = await readScores(page.getByLabel('Updated scoreboard'));
+
+    gameRun.rounds.push({
+      round: storyNumber,
+      story: storyText,
+      owner: `p${owner}`,
+      guesses,
+      scores,
+    });
 
     if (storyNumber < maxGameStories) {
       await page.getByRole('button', { name: `Story number ${storyNumber + 1}` }).click();
@@ -159,10 +226,17 @@ test('plays a full game flow with named players and stories', async ({ page }) =
     const suddenDeath = page.locator('section').filter({
       has: page.getByRole('heading', { name: 'Sudden Death!' }),
     });
+    const wagerLabels = suddenDeath.locator('label');
     const wagerFields = suddenDeath.locator('input[type="number"]');
+    const suddenDeathWagers: Record<string, number> = {};
 
     for (let index = 0; index < await wagerFields.count(); index += 1) {
-      await wagerFields.nth(index).fill('1');
+      const labelText = await wagerLabels.nth(index).textContent();
+      const finalistName = labelText?.match(/^(p\d+)'s wager/)?.[1];
+      expect(finalistName, `Expected sudden death wager label "${labelText}" to identify a finalist`).toBeTruthy();
+      const wager = '1';
+      suddenDeathWagers[finalistName] = Number(wager);
+      await wagerFields.nth(index).fill(wager);
     }
 
     await suddenDeath.getByRole('button', { name: 'Start Sudden Death Round' }).click();
@@ -173,6 +247,7 @@ test('plays a full game flow with named players and stories', async ({ page }) =
     const suddenDeathStoryText = await page.locator('.story-card').innerText();
     const suddenDeathOwner = suddenDeathStoryText.match(/^p(?<playerNumber>\d+)s\d+$/)?.groups?.playerNumber;
     expect(suddenDeathOwner, `Expected story text "${suddenDeathStoryText}" to identify a player`).toBeTruthy();
+    expect(Object.keys(suddenDeathWagers)).not.toContain(`p${suddenDeathOwner}`);
 
     const finalScoresButton = page.getByRole('button', { name: 'Final scores' });
     await expect(finalScoresButton).toBeDisabled();
@@ -182,16 +257,28 @@ test('plays a full game flow with named players and stories', async ({ page }) =
     });
 
     const suddenDeathLabels = suddenDeathGuessFields.locator('label');
+    const suddenDeathGuesses: Record<string, string> = {};
 
     for (let index = 0; index < await suddenDeathLabels.count(); index += 1) {
       const labelText = await suddenDeathLabels.nth(index).textContent();
       const finalistName = labelText?.match(/^(p\d+)'s guess/)?.[1];
       expect(finalistName, `Expected sudden death guess label "${labelText}" to identify a finalist`).toBeTruthy();
-      await page.getByLabel(`${finalistName}'s guess`).selectOption({ label: `p${suddenDeathOwner}` });
+      const miss = suddenDeathOwner === '4' ? 'p3' : 'p4';
+      const guess = index === 0 ? `p${suddenDeathOwner}` : miss;
+      suddenDeathGuesses[finalistName] = guess;
+      await page.getByLabel(`${finalistName}'s guess`).selectOption({ label: guess });
     }
 
     await expect(finalScoresButton).toBeEnabled();
     await finalScoresButton.click();
+
+    gameRun.suddenDeath = {
+      story: suddenDeathStoryText,
+      owner: `p${suddenDeathOwner}`,
+      wagers: suddenDeathWagers,
+      guesses: suddenDeathGuesses,
+      scores: await readScores(page.locator('.scoreboard.final')),
+    };
   }
 
   const finalScores = page.locator('section').filter({
@@ -204,4 +291,21 @@ test('plays a full game flow with named players and stories', async ({ page }) =
   await expect(finalScores.getByText('p3', { exact: true })).toBeVisible();
   await expect(finalScores.getByText('p4', { exact: true })).toBeVisible();
   await expect(finalScores.getByRole('button', { name: 'Start from scratch' })).toBeVisible();
+
+  gameRun.finalScores = await readScores(finalScores.locator('.scoreboard.final'));
+  await mkdir(path.dirname(gameRunPath), { recursive: true });
+  await writeFile(gameRunPath, JSON.stringify(gameRun, null, 2));
 });
+
+async function readScores(scoreboard: Locator) {
+  return scoreboard.locator(':scope > div').evaluateAll((rows) =>
+    rows.map((row) => {
+      const [player, score] = Array.from(row.children).map((child) => child.textContent?.trim() ?? '');
+
+      return {
+        player,
+        score: Number(score),
+      };
+    }),
+  );
+}

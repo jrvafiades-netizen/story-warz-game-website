@@ -174,8 +174,15 @@ function App() {
     if (storyIndex + 1 >= Math.min(deck.length, maxGameStories)) {
       const highScore = Math.max(...players.map((player) => player.score));
       const tied = players.filter((player) => player.score === highScore);
+      const playedCount = Math.min(deck.length, maxGameStories);
+      const suddenDeathCandidate = getSuddenDeathStory(
+        deck,
+        playedCount,
+        tied.map((player) => player.id),
+      );
+
       setWagers(Object.fromEntries(tied.map((player) => [player.id, 0])));
-      setStep(tied.length > 1 ? 'suddenDeath' : 'gameOver');
+      setStep(tied.length > 1 && suddenDeathCandidate ? 'suddenDeath' : 'gameOver');
       return;
     }
 

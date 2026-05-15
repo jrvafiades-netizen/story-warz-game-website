@@ -152,6 +152,16 @@ test('getSuddenDeathStory prefers an unplayed story from a non-finalist', () => 
   });
 });
 
+test('getSuddenDeathStory does not fall back to a finalist story', () => {
+  const deck = [
+    { playerId: 1, text: 'played' },
+    { playerId: 2, text: 'finalist unplayed 1' },
+    { playerId: 3, text: 'finalist unplayed 2' },
+  ];
+
+  expect(getSuddenDeathStory(deck, 1, [2, 3])).toBeUndefined();
+});
+
 test('scoreSuddenDeath adds correct wagers and subtracts missed wagers from finalists', () => {
   const scored = scoreSuddenDeath(
     [

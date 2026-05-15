@@ -81,7 +81,7 @@ export function getSuddenDeathStory(deck: StoryCard[], playedCount: number, fina
   const unplayedStories = deck.slice(playedCount);
   const finalistIdSet = new Set(finalistIds);
 
-  return unplayedStories.find((story) => !finalistIdSet.has(story.playerId)) ?? unplayedStories[0];
+  return unplayedStories.find((story) => !finalistIdSet.has(story.playerId));
 }
 
 export function scoreSuddenDeath(
