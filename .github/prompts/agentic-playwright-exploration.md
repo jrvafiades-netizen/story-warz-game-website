@@ -1,17 +1,18 @@
 # Agentic Playwright CLI Exploration
 
-You are running after the unit tests and deterministic Playwright E2E suite have passed.
+You are running after the unit tests, deterministic Playwright E2E suite, and GitHub Pages deployment have passed.
 
-The production build is being served at:
+The deployed Story Warz app is available at the GitHub Pages URL exposed as `DEPLOYED_APP_URL`.
+Use this value when it is set; the expected project URL is:
 
 ```text
-http://127.0.0.1:4173/story-warz-game-website/
+https://jrvafiades-netizen.github.io/story-warz-game-website/
 ```
 
 Explore the Story Warz app with the Playwright CLI. Use commands such as:
 
 ```bash
-playwright-cli open http://127.0.0.1:4173/story-warz-game-website/
+playwright-cli open "$DEPLOYED_APP_URL"
 playwright-cli snapshot
 playwright-cli click "role=button[name='ARE YOU READY FOR WAR?']"
 playwright-cli screenshot --filename test-results/agentic-playwright-exploration.png
