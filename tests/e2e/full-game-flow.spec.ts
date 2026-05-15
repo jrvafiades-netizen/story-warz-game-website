@@ -297,6 +297,24 @@ test('plays a full game flow with named players and stories', async ({ page }) =
   await writeFile(gameRunPath, JSON.stringify(gameRun, null, 2));
 });
 
+test('defaults to a visible four-player game when advancing without selecting a player count', async ({
+  page,
+}) => {
+  await page.goto(appUrl);
+
+  await page.getByRole('button', { name: 'ARE YOU READY FOR WAR?' }).click();
+  await expect(page.getByRole('button', { name: '4 Players' })).toHaveClass(/active/);
+  await page.getByRole('button', { name: 'Next' }).click();
+
+  for (let playerNumber = 1; playerNumber <= 3; playerNumber += 1) {
+    await expect(page.getByRole('heading', { name: `Player ${playerNumber}, Enter Your Name` })).toBeVisible();
+    await page.getByRole('button', { name: 'Submit' }).click();
+  }
+
+  await expect(page.getByRole('heading', { name: 'Player 4, Enter Your Name' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Story 1' })).toHaveCount(0);
+});
+
 async function readScores(scoreboard: Locator) {
   return scoreboard.locator(':scope > div').evaluateAll((rows) =>
     rows.map((row) => {

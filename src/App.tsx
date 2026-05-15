@@ -87,7 +87,7 @@ function App() {
   const [step, setStep] = useState<GameStep>('theme');
   const [theme, setTheme] = useState(themes[0]);
   const [customTheme, setCustomTheme] = useState('');
-  const [playerCount, setPlayerCount] = useState(3);
+  const [playerCount, setPlayerCount] = useState(4);
   const [entryIndex, setEntryIndex] = useState(0);
   const [currentName, setCurrentName] = useState('');
   const [currentStories, setCurrentStories] = useState(['', '', '', '']);
